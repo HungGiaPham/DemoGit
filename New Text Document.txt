@@ -1,1 +1,230 @@
-DemoGit
+import {StyleSheet} from 'react-native';
+import {Metrics, Colors, Fonts} from '../../Themes';
+import {extendStyles} from '../../Share/Styles';
+
+export default StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    flexDirection: 'row',
+  },
+  categoriesContainer: {
+    backgroundColor: Colors.background,
+    width: Metrics.baseMargin * 10,
+  },
+  lessonsCategories: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  text: {
+    marginHorizontal: Metrics.baseMargin * 1.5,
+    marginVertical: Metrics.noMargin,
+  },
+  nameCategories: {
+    fontSize: Fonts.size.small,
+    marginVertical: Metrics.marginVertical,
+    marginHorizontal: Metrics.baseMargin,
+    textAlign: 'center',
+    color: Colors.white,
+    ...extendStyles.baseFont,
+  },
+  title: {
+    fontSize: Fonts.size.input,
+    color: Colors.white,
+    ...extendStyles.baseFont,
+  },
+  numberClasses: {
+    fontSize: Fonts.size.small,
+    marginVertical: Metrics.marginVertical,
+    color: Colors.white,
+    ...extendStyles.baseFont,
+  },
+  icon: {},
+  categoriesButton: {
+    height: Metrics.baseMargin * 10,
+    width: Metrics.baseMargin * 10,
+    marginBottom: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    opacity: 0.8,
+  },
+  categoriesButtonOpacity: {
+    width: Metrics.doubleBaseMargin * 4.5,
+    height: Metrics.doubleBaseMargin * 4,
+    backgroundColor: Colors.steel,
+    marginBottom: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    opacity: 0.5,
+  },
+  imageCategories: {
+    width: Metrics.baseMargin * 3,
+    height: Metrics.baseMargin * 3,
+  },
+  listLessons: {
+    flex: 1,
+    marginHorizontal: Metrics.baseMargin,
+  },
+});
+
+import React, {Component, Props} from 'react';
+import {View, TouchableOpacity, Image, Text, FlatList} from 'react-native';
+import styles from './Styles/ListScreenStyle';
+import Api from '../Services/Api';
+import Constant from '../Config/Constant';
+import ListViewHorizontal from '../Components/Share/ListViewHorizontal';
+import {Metrics, Fonts, Colors} from '../Themes';
+import translator from '../I18n/Languages';
+import SCREENS from '../Config/Screens';
+import Utils from '../Services/Utils';
+
+class ListScreen extends Component {
+  state = {
+    categories: [],
+    arrLessons: [],
+    idItem: '',
+    skip: 0,
+    take: 10,
+  };
+
+  componentDidMount() {
+    const {categories} = this.state;
+    Api.create()
+      .getAllCategory(null, null)
+      .then((response: any) => {
+        const categories = response.data.map(function(
+          item: any,
+          index: number,
+        ) {
+          return {
+            name: item.name.trim(),
+            id: item.id.trim(),
+            numberOfCourses: item.numberOfCourses ? item.numberOfCourses : 1,
+          };
+        });
+        this.setState(
+          {
+            categories,
+          },
+          () => {
+            if (categories) {
+              this.getLessons(categories[0].id);
+            }
+          },
+        );
+      });
+  }
+
+  getLessons = (id: string) => {
+    const {skip, take} = this.state;
+    Api.create()
+      .getLessonsInCategories(id, skip, take)
+      .then((result: any) => {
+        const arrLessons = result.data.items.map(function(item: any) {
+          return {
+            id: Utils.getSlugCode(item.slug),
+            image: item.largeThumbnail,
+            title: item.instructor.name.trim(),
+            description: item.title.trim(),
+            nameCategories: item.category.name.trim(),
+          };
+        });
+        if (!arrLessons) {
+          this.setState({idItem: id});
+        } else {
+          this.setState({arrLessons, idItem: id});
+        }
+      });
+  };
+
+  _renderClasses(arrLessons: any) {
+    const {idItem} = this.state;
+    const {navigation} = this.props as any;
+    const itemWidth =
+      (Metrics.screenWidth - Metrics.baseMargin * 3.5 - Fonts.size.h5 * 5) / 2;
+    return (
+      <View style={styles.lessonsCategories}>
+        {arrLessons ? (
+          <View style={styles.text}>
+            <Text style={styles.title} numberOfLines={1}>
+              {!idItem
+                ? translator('ALL_CLASSES')
+                : arrLessons[0].nameCategories}
+            </Text>
+            <Text style={styles.numberClasses}>
+              {arrLessons.length} {translator('CLASSES')}
+            </Text>
+          </View>
+        ) : null}
+        <View style={styles.listLessons}>
+          <ListViewHorizontal
+            numColumns={2}
+            itemWidth={itemWidth}
+            isVertical
+            data={arrLessons}
+            navigation={navigation}
+            detailsName={SCREENS.ClassDetailNavigator}
+          />
+        </View>
+      </View>
+    );
+  }
+
+  _renderItem(item: any) {
+    const {idItem} = this.state;
+    return item.item.numberOfCourses ? (
+      <TouchableOpacity
+        style={[
+          styles.categoriesButton,
+          {
+            backgroundColor:
+              idItem === item.item.id ? Colors.gold : Colors.steel,
+          },
+        ]}
+        onPress={() => this.getLessons(item.item.id)}>
+        <Image
+          source={Constant.ICON[item.index].src}
+          style={[
+            styles.imageCategories,
+            {opacity: idItem === item.item.id ? 1 : 0.5},
+          ]}
+        />
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.nameCategories,
+            {opacity: idItem === item.item.id ? 1 : 0.5},
+          ]}>
+          {item.item.name}
+        </Text>
+      </TouchableOpacity>
+    ) : null;
+  }
+
+  _renderListcategories() {
+    const {categories} = this.state;
+    return (
+      <View style={styles.categoriesContainer}>
+        <FlatList
+          data={categories}
+          renderItem={(item: any) => this._renderItem(item)}
+          keyExtractor={(item: any) => item.id}
+          showsVerticalScrollIndicator={false}
+          extraData={this.state}
+        />
+      </View>
+    );
+  }
+
+  render() {
+    const {arrLessons} = this.state;
+    return (
+      <View style={styles.container}>
+        {this._renderListcategories()}
+        {arrLessons.length ? this._renderClasses(arrLessons) : null}
+      </View>
+    );
+  }
+}
+
+export default ListScreen;
